@@ -2,9 +2,23 @@ import mediapipe as mp
 import cv2
 import time
 import math
-import pyautogui
+import numpy as np
+from comtypes import CLSCTX_ALL
+from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+from ctypes  import cast, POINTER
+
 x1=y1=x2=y2 = 0
 
+devices = AudioUtilities.GetSpeakers()
+interface = devices.Activate(
+    IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+volume = interface.QueryInterface(IAudioEndpointVolume)
+# volume.GetMute()
+# volume.GetMasterVolumeLevel()
+volRange = volume.GetVolumeRange()
+
+minVol = volRange[0]
+maxVol = volRange[1]
 
 mp_drawing = mp.solutions.drawing_utils  #render all the different landmarks on the hand
 mp_hands = mp.solutions.hands
@@ -40,36 +54,38 @@ with mp_hands.Hands(min_detection_confidence=0.8,min_tracking_confidence=0.5, ma
     if results.multi_hand_landmarks:
       for num,hand in enumerate(results.multi_hand_landmarks):
         mp_drawing.draw_landmarks(image,hand,mp_hands.HAND_CONNECTIONS,
-                                  mp_drawing.DrawingSpec(color=(121,22,76),thickness =2,circle_radius = 4),  #circle landmarks BGR
-                                  mp_drawing.DrawingSpec(color=(250,44,250),thickness=2,circle_radius=2),    #line BGR
+                                  mp_drawing.DrawingSpec(color=(0,0,255),thickness =2,circle_radius = 4),  #circle landmarks BGR
+                                  mp_drawing.DrawingSpec(color=(0,255,0),thickness=2,circle_radius=2),    #line BGR
         )
         landmarks = hand.landmark
         for id, landmark in enumerate ( landmarks ):
+
+            # finding x,y points of index and thumb
             x = int ( landmark.x * frame_width )
             y = int ( landmark.y * frame_height )
             if id == 8:
-                cv2.circle ( image, (x, y), 8, (0, 0, 255), 3, cv2.FILLED )
+                cv2.circle ( image, (x, y), 10, (255, 0, 255), 3, cv2.FILLED )
                 x1 = x
                 y1 = y
             if id == 4:
-                cv2.circle ( image, (x, y), 8, (0, 0, 255), 3, cv2.FILLED )
+                cv2.circle ( image, (x, y), 10, (255, 0, 255), 3, cv2.FILLED )
                 x2 = x
                 y2 = y
+
+      cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+      cv2.circle ( image, (cx, cy), 15, (255, 0, 255), cv2.FILLED )
       cv2.line ( image, (x1, y1), (x2, y2), (0, 255, 0), 3 )
       dist = math.hypot ( x2 - x1, y2 - y1 )
-      print ( dist )
-      if dist > 175:
-          a = int ( dist // 2 )
-          pyautogui.press ( "volumeup", a )
-      elif 170 > dist > 110:
-          pyautogui.press ( "volumeup" )
-      elif 110 > dist > 50:
-          pyautogui.press ( "volumedown" )
-      elif 50>dist>25:
-          a = int ( dist // 2 )
-          pyautogui.press ( "volumedown", a )
-      else:
-          pyautogui.press("volumemute")
+      # print ( dist )
+
+      #Hand range = 240 to 40
+      #Vol range = -65 to 0
+      vol = np.interp(dist,[40,240],[minVol,maxVol])
+      # print(vol)
+      volume.SetMasterVolumeLevel ( vol, None )
+
+      if dist<50:
+          cv2.circle ( image, (cx, cy), 15, (0, 255, 0), cv2.FILLED )
 
     cv2.imshow("Hand Tracking", image) #render that image to the screen
 
